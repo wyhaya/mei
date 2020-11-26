@@ -1,0 +1,37 @@
+[package]
+name = "mei"
+version = "0.1.0"
+edition = "2018"
+
+authors = ["wyhaya <wyhaya@gmail.com>"]
+description = "Utility tool for compress and archive files"
+homepage = "https://github.com/wyhaya/mei"
+repository = "https://github.com/wyhaya/mei.git"
+license = "MIT"
+readme = "README.md"
+
+keywords = [
+    "compression",
+    "encryption",
+    "archive",
+    "aes-gcm"
+]
+
+[profile.release]
+lto = true
+codegen-units = 1
+# strip = "symbols"
+
+[dependencies]
+aes-gcm = "0.8.0"
+brotli = "3.3.0"
+clap = "2.33.3"
+rand = "0.7.3"
+scrypt = "0.5.0"
+walkdir = "2.3.1"
+
+[profile.dev.package.scrypt]
+opt-level = 3
+
+[build-dependencies]
+time = "0.1"
