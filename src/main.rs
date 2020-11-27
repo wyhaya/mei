@@ -1,16 +1,15 @@
+mod app;
 mod lib;
 
-use clap::{crate_name, crate_version, App, AppSettings, Arg};
-use lib::{
-    CompressParams, Decode, Encode, Error, FileType, Password, ScryptParams, DEFAULT_BUF_SIZE,
-    DEFAULT_COMPRESS_QUALITY,
-};
+use app::Options;
+use lib::{CompressParams, Decode, Encode, FileType, Password, ScryptParams, DEFAULT_BUF_SIZE};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use walkdir::WalkDir;
 
+#[macro_export]
 macro_rules! exit {
     ($($arg:tt)*) => {
         {
@@ -20,98 +19,12 @@ macro_rules! exit {
     };
 }
 
-const DEFAULT_OUTPUT_FILE: &str = "archive.mei";
-const DEFAULT_OUTPUT_DIR: &str = "./";
-
 fn main() {
-    let app = App::new(crate_name!())
-        .global_setting(AppSettings::ColoredHelp)
-        .version(format!("{} ({})", crate_version!(), env!("BUILD_DATE")).as_str())
-        .usage(format!("{} <PATH> -d?", crate_name!()).as_str())
-        .arg(
-            Arg::with_name("PATH")
-                .required(true)
-                .help("Set the input file path"),
-        )
-        .arg(
-            Arg::with_name("decompress")
-                .short("d")
-                .long("decompress")
-                .help("Decompress archived file"),
-        )
-        .arg(
-            Arg::with_name("output")
-                .short("o")
-                .long("output")
-                .takes_value(true)
-                .value_name("PATH")
-                .help("Set output file path"),
-        )
-        .arg(
-            Arg::with_name("force")
-                .short("f")
-                .long("force")
-                .help("Overwrite local files"),
-        )
-        .arg(
-            Arg::with_name("info")
-                .short("i")
-                .long("info")
-                .takes_value(true)
-                .value_name("info")
-                .conflicts_with("decompress")
-                .help("Set archive file information"),
-        )
-        .arg(
-            Arg::with_name("quality")
-                .short("q")
-                .long("quality")
-                .takes_value(true)
-                .value_name("1-11")
-                .conflicts_with("decompress")
-                .help("Set compression quality"),
-        )
-        .arg(
-            Arg::with_name("password")
-                .short("p")
-                .long("password")
-                .takes_value(true)
-                .value_name("PASSWORD")
-                .help("Set/Use archive file password"),
-        )
-        .get_matches();
-
-    let input = app.value_of("PATH").unwrap();
-    let info = app.value_of("info").unwrap_or_default();
-    let password = app.value_of("password");
-    let output = app.value_of("output");
-    let force = app.is_present("force");
-    let decompress = app.is_present("decompress");
-    let quality = app
-        .value_of("quality")
-        .map(|s| {
-            if let Ok(n) = s.parse::<u32>() {
-                if n <= 11 && n >= 1 {
-                    return n;
-                }
-            }
-            exit!("The value of '--quality' is between 1-11")
-        })
-        .unwrap_or(DEFAULT_COMPRESS_QUALITY);
-
-    let rst = match decompress {
-        true => decompress_file(input, output.unwrap_or(DEFAULT_OUTPUT_DIR), force, password),
-        false => compress_file(
-            input,
-            output.unwrap_or(DEFAULT_OUTPUT_FILE),
-            force,
-            password,
-            info,
-            quality,
-        ),
-    };
-    if let Err(err) = rst {
-        exit!("Failed: {:?}", err)
+    let options = app::options();
+    if options.compress {
+        compress_archive(options);
+    } else {
+        decompress_archive(options);
     }
 }
 
@@ -122,44 +35,36 @@ fn buf_reader(p: &str) -> BufReader<File> {
 }
 
 fn buf_writer<P: AsRef<Path>>(p: P, force: bool) -> BufWriter<File> {
-    let path = p.as_ref();
-    if !force && path.exists() {
-        exit!("File '{}' already exists", path.display());
+    let p = p.as_ref();
+    if !force && p.exists() {
+        exit!("File '{}' already exists", p.display());
     }
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)
-                .unwrap_or_else(|err| exit!("Failed to create '{}': {:?}", path.display(), err));
-        }
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
     }
-    File::create(path)
+    File::create(p)
         .map(|f| BufWriter::new(f))
-        .unwrap_or_else(|err| exit!("Failed to create '{}': {:?}", path.display(), err))
+        .unwrap_or_else(|err| exit!("Failed to create '{}': {:?}", p.display(), err))
 }
 
-fn compress_file(
-    input: &str,
-    output: &str,
-    force: bool,
-    password: Option<&str>,
-    info: &str,
-    quality: u32,
-) -> Result<(), Error> {
-    if let Err(err) = fs::metadata(input) {
-        exit!("Failed to get '{}' metadata: {:?}", input, err);
+fn compress_archive(options: Options) {
+    let input = Path::new(&options.input);
+    if !input.exists() {
+        exit!("'{}' does not exist", options.input);
     }
-    let prefix = Path::new(input)
-        .parent()
-        .unwrap_or_else(|| Path::new(input));
-    let writer = buf_writer(&output, force);
-    let output_path = Path::new(output).canonicalize().unwrap();
-    let password = password.map(|key| Password::new(key, ScryptParams::default()));
-    let mut params = CompressParams::default();
-    params.quality(quality);
-    let mut encode = Encode::new(writer, info, password, params)?;
-
+    let prefix = input.parent().unwrap_or_else(|| input);
+    let output = Path::new(&options.output);
+    let writer = buf_writer(output, options.force);
+    let filter = output.canonicalize().unwrap();
+    let password = options
+        .password
+        .as_deref()
+        .map(|key| Password::new(key, ScryptParams::default()));
+    let params = *CompressParams::default().quality(options.quality);
+    let mut encode = Encode::new(writer, &options.info, password, params)
+        .unwrap_or_else(|err| exit!("{:#?}", err));
     let mut exclude = true;
-    let files = WalkDir::new(input).into_iter().filter_map(|rst| {
+    let files = WalkDir::new(&options.input).into_iter().filter_map(|rst| {
         let entry = match rst {
             Ok(entry) => entry,
             Err(err) => {
@@ -170,7 +75,7 @@ fn compress_file(
         if exclude {
             match entry.path().canonicalize() {
                 Ok(path) => {
-                    if path == output_path {
+                    if path == filter {
                         exclude = false;
                         return None;
                     }
@@ -189,9 +94,9 @@ fn compress_file(
         let p = path.to_str().unwrap_or_default();
         if entry.path().is_dir() {
             println!("Adding: {}", p);
-            if let Err(err) = encode.write_directory(p) {
-                exit!("Failed to write directory: {:?}", err);
-            }
+            encode
+                .write_directory(p)
+                .unwrap_or_else(|err| exit!("Failed to write directory: {:?}", err));
         } else {
             print!("Adding: {}", p);
             let mut f = File::open(entry.path())
@@ -203,19 +108,12 @@ fn compress_file(
             println!(" [{:.1}%]", (bytes as f32) / len * 100.);
         }
     }
-
-    Ok(())
 }
 
-fn decompress_file(
-    input: &str,
-    output: &str,
-    force: bool,
-    password: Option<&str>,
-) -> Result<(), Error> {
-    let reader = buf_reader(input);
+fn decompress_archive(options: Options) {
+    let reader = buf_reader(&options.input);
     let root = {
-        let path = PathBuf::from(output);
+        let path = PathBuf::from(&options.output);
         if !path.exists() {
             let _ = fs::create_dir_all(&path);
         } else {
@@ -225,13 +123,13 @@ fn decompress_file(
         }
         path
     };
-    let mut decode = Decode::new(reader, password.as_deref(), DEFAULT_BUF_SIZE)?;
-    if !decode.info().is_empty() {
-        println!("Info: {}", decode.info());
-    }
+    let mut decode = Decode::new(reader, options.password.as_deref(), DEFAULT_BUF_SIZE)
+        .unwrap_or_else(|err| exit!("{:#?}", err));
+    println!("Info: {}", decode.info());
 
     loop {
-        let (file_type, path) = match decode.read_path()? {
+        let opt = decode.read_path().unwrap_or_else(|err| exit!("{:#?}", err));
+        let (file_type, path) = match opt {
             Some(opt) => opt,
             None => break,
         };
@@ -245,13 +143,11 @@ fn decompress_file(
                 }
             }
             FileType::File => {
-                let mut writer = buf_writer(&path, force);
+                let mut writer = buf_writer(&path, options.force);
                 if let Err(err) = decode.read_file(&mut writer) {
                     exit!("Failed to read '{}': {:?}", path.display(), err);
                 }
             }
         }
     }
-
-    Ok(())
 }

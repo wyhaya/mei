@@ -80,7 +80,7 @@ impl FileType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct CompressParams {
     buf_size: usize,
     quality: u32,
@@ -570,6 +570,6 @@ mod tests {
         );
 
         decode.read_file(&mut std::io::stdout()).unwrap();
-        assert!(decode.read_path().is_err());
+        assert!(decode.read_path().unwrap().is_none());
     }
 }
