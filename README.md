@@ -5,7 +5,8 @@ Utility tool for compress and archive files
 
 ## Features
 
-* ...
+* Compress files with `brotli`
+* Encrypt files with `aes-gcm`
 
 ## Install
 
