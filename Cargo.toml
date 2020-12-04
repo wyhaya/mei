@@ -1,6 +1,6 @@
 [package]
 name = "mei"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 
 authors = ["wyhaya <wyhaya@gmail.com>"]
@@ -32,6 +32,3 @@ walkdir = "2.3.1"
 
 [profile.dev.package.scrypt]
 opt-level = 3
-
-[build-dependencies]
-time = "0.1"

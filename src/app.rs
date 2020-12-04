@@ -18,7 +18,7 @@ pub struct Options {
 pub fn options() -> Options {
     let app = App::new(crate_name!())
         .global_setting(AppSettings::ColoredHelp)
-        .version(format!("{} [Build: {}]", crate_version!(), env!("BUILD_DATE")).as_str())
+        .version(crate_version!())
         .usage(format!("{} <PATH> -d?", crate_name!()).as_str())
         .arg(
             Arg::with_name("PATH")
