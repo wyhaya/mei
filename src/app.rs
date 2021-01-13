@@ -1,6 +1,7 @@
 use crate::exit;
 use crate::lib::DEFAULT_COMPRESS_QUALITY;
 use clap::{crate_name, crate_version, App, AppSettings, Arg};
+use rpassword::prompt_password_stdout;
 
 const DEFAULT_OUTPUT_FILE: &str = "archive.mei";
 const DEFAULT_OUTPUT_DIR: &str = "./";
@@ -67,8 +68,9 @@ pub fn options() -> Options {
             Arg::with_name("password")
                 .short("p")
                 .long("password")
-                .takes_value(true)
                 .value_name("PASSWORD")
+                .min_values(0)
+                .max_values(1)
                 .help("Set/Use archive file password"),
         )
         .get_matches();
@@ -76,7 +78,17 @@ pub fn options() -> Options {
     Options {
         input: app.value_of("PATH").unwrap().to_string(),
         info: app.value_of("info").unwrap_or_default().to_string(),
-        password: app.value_of("password").map(|s| s.to_string()),
+        password: {
+            if app.is_present("password") {
+                let val = match app.value_of("password") {
+                    Some(s) => s.to_string(),
+                    None => prompt_password_stdout("Password: ").unwrap(),
+                };
+                Some(val)
+            } else {
+                None
+            }
+        },
         force: app.is_present("force"),
         compress: !app.is_present("decompress"),
         output: app

@@ -1,6 +1,6 @@
 [package]
 name = "mei"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2018"
 
 authors = ["wyhaya <wyhaya@gmail.com>"]
@@ -27,6 +27,7 @@ aes-gcm = "0.8.0"
 brotli = "3.3.0"
 clap = "2.33.3"
 rand = "0.7.3"
+rpassword = "5.0.0"
 scrypt = "0.5.0"
 walkdir = "2.3.1"
 

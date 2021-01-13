@@ -23,10 +23,6 @@ cargo install mei
 ## Usage
 
 ```bash
-mei --help
-```
-
-```bash
 # Compress & Archive files
 mei 'path'
 
@@ -45,3 +41,8 @@ mei 'archive.mei' -d
 mei 'archive.mei' -d -p '123456'
 ```
 
+
+```bash
+# View all command line options
+mei --help
+```
